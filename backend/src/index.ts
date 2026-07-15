@@ -5,6 +5,7 @@ import cors from 'cors';
 
 // tiny .env loader (no dependency) — local dev only; Vercel injects real env vars
 (() => {
+  if (process.env.VERCEL) return;
   try {
     const envPath = path.join(__dirname, '..', '.env');
     if (!fs.existsSync(envPath)) return;
