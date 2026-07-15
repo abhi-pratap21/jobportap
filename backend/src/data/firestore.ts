@@ -5,8 +5,8 @@
  * Writes: jobApplications (new collection — company owners' applicant activity),
  *         portalSavedJobs, portalProfiles, and applicantsCount on jobPostings.
  *
- * If Firebase credentials are not configured, every function signals "disabled"
- * and the routes fall back to the local dummy dataset — so local dev never breaks.
+ * Firebase credentials are required — the portal serves only REAL jobs posted
+ * from the amrut.ai dashboard. Without credentials the API returns 503.
  */
 import { applicationDefault, cert, getApps, initializeApp } from 'firebase-admin/app';
 import { FieldValue, Firestore, getFirestore } from 'firebase-admin/firestore';
@@ -246,6 +246,7 @@ export async function fsCreateApplication(
     id: ref.id,
     // seeker side (query: userEmail ==)
     userEmail: PROFILE_EMAIL,
+    // full profile snapshot — the company owner judges the candidate from this
     applicant: {
       name: applicant.name,
       email: applicant.email,
@@ -253,7 +254,16 @@ export async function fsCreateApplication(
       headline: applicant.headline,
       location: applicant.location,
       totalExperienceYears: applicant.totalExperienceYears,
+      currentSalaryLPA: applicant.currentSalaryLPA,
+      expectedSalaryLPA: applicant.expectedSalaryLPA,
+      noticePeriod: applicant.noticePeriod,
+      about: applicant.about,
       skills: applicant.skills,
+      languages: applicant.languages,
+      preferredLocations: applicant.preferredLocations,
+      preferredRoles: applicant.preferredRoles,
+      workExperience: applicant.workExperience,
+      education: applicant.education,
       resumeFileName: applicant.resume.fileName,
     },
     // company side (query: domain ==)

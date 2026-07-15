@@ -19,9 +19,7 @@ import cors from 'cors';
     /* .env is optional */
   }
 })();
-import { companies as dummyCompanies, companyById as dummyCompanyById } from './data/companies';
-import { jobs as dummyJobs, jobById as dummyJobById } from './data/jobs';
-import { applications, savedJobIds, profile, nextApplicationId } from './data/store';
+
 import {
   firestoreEnabled,
   fsCreateApplication,
@@ -35,30 +33,31 @@ import {
   loadCatalog,
   withCompanyFS,
 } from './data/firestore';
-import { Application, Company, Job, JobWithCompany } from './types';
+import { Company, Job, JobWithCompany } from './types';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
-const LIVE = firestoreEnabled();
 
 app.use(cors());
 app.use(express.json());
 
-// ---------------------------------------------------------------------------
-// Data source: live Firestore (jobPostings/companyProfiles) or local dummy set
-// ---------------------------------------------------------------------------
-interface Catalog {
-  jobs: Job[];
-  companies: Map<string, Company>;
+// The portal serves REAL data only — jobs posted from the amrut.ai dashboard
+// (jobPostings in Firestore). Without credentials there is nothing to show.
+if (!firestoreEnabled()) {
+  console.error(
+    '❌ Firebase credentials missing. Set GOOGLE_APPLICATION_CREDENTIALS (key file path) ' +
+      'or FIREBASE_PROJECT_ID / FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY in backend/.env'
+  );
 }
 
-async function getCatalog(): Promise<Catalog> {
-  if (LIVE) {
-    const c = await loadCatalog();
-    return { jobs: c.jobs, companies: c.companies };
+app.use('/api', (req, res, next) => {
+  if (!firestoreEnabled()) {
+    return res.status(503).json({
+      message: 'Backend is not connected to Firebase. Set Firebase credentials and restart.',
+    });
   }
-  return { jobs: dummyJobs, companies: dummyCompanyById };
-}
+  next();
+});
 
 const withCompany = (job: Job, companies: Map<string, Company>): JobWithCompany =>
   withCompanyFS(job, companies);
@@ -67,27 +66,19 @@ const wrap =
   (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response) => {
     fn(req, res).catch((err) => {
       console.error(`[api] ${req.method} ${req.path} failed:`, err.message);
-      res.status(500).json({ message: 'Something went wrong. Please try again.' });
+      res.status(500).json({ message: `Request failed: ${err.message}` });
     });
   };
-
-async function getApplicationsList(): Promise<Application[]> {
-  return LIVE ? fsGetApplications() : applications;
-}
-
-async function getSavedIds(): Promise<Set<string>> {
-  return LIVE ? new Set(await fsGetSavedJobIds()) : savedJobIds;
-}
 
 // ---------- Health ----------
 app.get(
   '/api/health',
   wrap(async (_req, res) => {
-    const { jobs, companies } = await getCatalog();
+    const { jobs, companies } = await loadCatalog();
     res.json({
       status: 'ok',
       service: 'amrut-jobs-backend',
-      mode: LIVE ? 'firestore' : 'dummy',
+      mode: 'firestore',
       jobs: jobs.length,
       companies: companies.size,
     });
@@ -98,7 +89,7 @@ app.get(
 app.get(
   '/api/meta',
   wrap(async (_req, res) => {
-    const { jobs } = await getCatalog();
+    const { jobs } = await loadCatalog();
     res.json({
       categories: Array.from(new Set(jobs.map((j) => j.category))).sort(),
       locations: Array.from(new Set(jobs.map((j) => j.location))).sort(),
@@ -132,7 +123,7 @@ app.get(
       limit = '10',
     } = req.query as Record<string, string>;
 
-    const { jobs, companies } = await getCatalog();
+    const { jobs, companies } = await loadCatalog();
     let result = jobs.slice();
 
     if (q) {
@@ -166,7 +157,7 @@ app.get(
     if (expMin !== undefined && expMin !== '') {
       const min = Number(expMin);
       const max = expMax !== undefined && expMax !== '' ? Number(expMax) : 50;
-      // jobs with unknown experience (0/0) always match
+      // jobs with unspecified experience (0/0) always match
       result = result.filter(
         (j) => (j.experienceMin === 0 && j.experienceMax === 0) || (j.experienceMin <= max && j.experienceMax >= min)
       );
@@ -207,7 +198,7 @@ app.get(
 app.get(
   '/api/jobs/featured',
   wrap(async (_req, res) => {
-    const { jobs, companies } = await getCatalog();
+    const { jobs, companies } = await loadCatalog();
     const featured = jobs.filter((j) => j.featured).slice(0, 8);
     const filler = featured.length < 4 ? jobs.filter((j) => !j.featured).slice(0, 8 - featured.length) : [];
     res.json([...featured, ...filler].map((j) => withCompany(j, companies)));
@@ -217,14 +208,14 @@ app.get(
 app.get(
   '/api/jobs/:id',
   wrap(async (req, res) => {
-    const { jobs, companies } = await getCatalog();
-    const job = jobs.find((j) => j.id === req.params.id) ?? (LIVE ? undefined : dummyJobById.get(req.params.id));
+    const { jobs, companies } = await loadCatalog();
+    const job = jobs.find((j) => j.id === req.params.id);
     if (!job) return res.status(404).json({ message: 'Job not found' });
-    const [apps, saved] = await Promise.all([getApplicationsList(), getSavedIds()]);
+    const [apps, savedIds] = await Promise.all([fsGetApplications(), fsGetSavedJobIds()]);
     res.json({
       ...withCompany(job, companies),
       isApplied: apps.some((a) => a.jobId === job.id),
-      isSaved: saved.has(job.id),
+      isSaved: savedIds.includes(job.id),
     });
   })
 );
@@ -232,7 +223,7 @@ app.get(
 app.get(
   '/api/jobs/:id/similar',
   wrap(async (req, res) => {
-    const { jobs, companies } = await getCatalog();
+    const { jobs, companies } = await loadCatalog();
     const job = jobs.find((j) => j.id === req.params.id);
     if (!job) return res.status(404).json({ message: 'Job not found' });
     const similar = jobs
@@ -247,8 +238,8 @@ app.get(
 app.get(
   '/api/companies',
   wrap(async (_req, res) => {
-    const { jobs, companies } = await getCatalog();
-    const list = (LIVE ? Array.from(companies.values()) : dummyCompanies).map((c) => ({
+    const { jobs, companies } = await loadCatalog();
+    const list = Array.from(companies.values()).map((c) => ({
       ...c,
       openJobs: jobs.filter((j) => j.companyId === c.id).length,
     }));
@@ -259,7 +250,7 @@ app.get(
 app.get(
   '/api/companies/:id',
   wrap(async (req, res) => {
-    const { jobs, companies } = await getCatalog();
+    const { jobs, companies } = await loadCatalog();
     const company = companies.get(req.params.id);
     if (!company) return res.status(404).json({ message: 'Company not found' });
     res.json({
@@ -273,13 +264,11 @@ app.get(
 app.get(
   '/api/applications',
   wrap(async (_req, res) => {
-    const { jobs, companies } = await getCatalog();
-    const apps = await getApplicationsList();
+    const { jobs, companies } = await loadCatalog();
+    const apps = await fsGetApplications();
     const list = apps
-      .slice()
-      .sort((a, b) => new Date(b.appliedOn).getTime() - new Date(a.appliedOn).getTime())
       .map((a) => {
-        const job = jobs.find((j) => j.id === a.jobId) ?? (LIVE ? undefined : dummyJobById.get(a.jobId));
+        const job = jobs.find((j) => j.id === a.jobId);
         return job ? { ...a, job: withCompany(job, companies) } : null;
       })
       .filter(Boolean);
@@ -291,48 +280,25 @@ app.post(
   '/api/applications',
   wrap(async (req, res) => {
     const { jobId, coverNote } = req.body as { jobId?: string; coverNote?: string };
-    const { jobs, companies } = await getCatalog();
+    const { jobs, companies } = await loadCatalog();
     const job = jobId ? jobs.find((j) => j.id === jobId) : undefined;
     if (!job) return res.status(400).json({ message: 'Valid jobId is required' });
 
-    if (LIVE) {
-      const applicant = await fsGetProfile();
-      const created = await fsCreateApplication(withCompany(job, companies), coverNote, applicant);
-      if (created === 'duplicate') {
-        return res.status(409).json({ message: 'You have already applied to this job' });
-      }
-      return res.status(201).json({ ...created, job: withCompany(job, companies) });
-    }
-
-    if (applications.some((a) => a.jobId === jobId)) {
+    const applicant = await fsGetProfile();
+    const created = await fsCreateApplication(withCompany(job, companies), coverNote, applicant);
+    if (created === 'duplicate') {
       return res.status(409).json({ message: 'You have already applied to this job' });
     }
-    const now = new Date().toISOString();
-    const application = {
-      id: nextApplicationId(),
-      jobId: job.id,
-      appliedOn: now,
-      status: 'Applied' as const,
-      coverNote,
-      timeline: [{ status: 'Applied' as const, date: now, note: 'Your application was submitted successfully.' }],
-    };
-    applications.push(application);
-    res.status(201).json({ ...application, job: withCompany(job, companies) });
+    res.status(201).json({ ...created, job: withCompany(job, companies) });
   })
 );
 
 app.delete(
   '/api/applications/:id',
   wrap(async (req, res) => {
-    if (LIVE) {
-      const ok = await fsWithdrawApplication(req.params.id);
-      if (!ok) return res.status(404).json({ message: 'Application not found' });
-      return res.json({ withdrawn: true, id: req.params.id });
-    }
-    const idx = applications.findIndex((a) => a.id === req.params.id);
-    if (idx === -1) return res.status(404).json({ message: 'Application not found' });
-    const [removed] = applications.splice(idx, 1);
-    res.json({ withdrawn: true, id: removed.id });
+    const ok = await fsWithdrawApplication(req.params.id);
+    if (!ok) return res.status(404).json({ message: 'Application not found' });
+    res.json({ withdrawn: true, id: req.params.id });
   })
 );
 
@@ -340,10 +306,10 @@ app.delete(
 app.get(
   '/api/saved-jobs',
   wrap(async (_req, res) => {
-    const { jobs, companies } = await getCatalog();
-    const saved = await getSavedIds();
-    const list = Array.from(saved)
-      .map((id) => jobs.find((j) => j.id === id) ?? (LIVE ? undefined : dummyJobById.get(id)))
+    const { jobs, companies } = await loadCatalog();
+    const savedIds = await fsGetSavedJobIds();
+    const list = savedIds
+      .map((id) => jobs.find((j) => j.id === id))
       .filter((j): j is Job => Boolean(j))
       .map((j) => withCompany(j, companies));
     res.json(list);
@@ -354,12 +320,11 @@ app.post(
   '/api/saved-jobs',
   wrap(async (req, res) => {
     const { jobId } = req.body as { jobId?: string };
-    const { jobs } = await getCatalog();
+    const { jobs } = await loadCatalog();
     if (!jobId || !jobs.some((j) => j.id === jobId)) {
       return res.status(400).json({ message: 'Valid jobId is required' });
     }
-    if (LIVE) await fsSaveJob(jobId);
-    else savedJobIds.add(jobId);
+    await fsSaveJob(jobId);
     res.status(201).json({ saved: true, jobId });
   })
 );
@@ -367,8 +332,7 @@ app.post(
 app.delete(
   '/api/saved-jobs/:jobId',
   wrap(async (req, res) => {
-    if (LIVE) await fsUnsaveJob(req.params.jobId);
-    else savedJobIds.delete(req.params.jobId);
+    await fsUnsaveJob(req.params.jobId);
     res.json({ saved: false, jobId: req.params.jobId });
   })
 );
@@ -377,11 +341,14 @@ app.delete(
 app.get(
   '/api/profile',
   wrap(async (_req, res) => {
-    const [apps, saved] = await Promise.all([getApplicationsList(), getSavedIds()]);
-    const base = LIVE ? await fsGetProfile() : profile;
+    const [apps, savedIds, base] = await Promise.all([
+      fsGetApplications(),
+      fsGetSavedJobIds(),
+      fsGetProfile(),
+    ]);
     res.json({
       ...base,
-      stats: { applied: apps.length, saved: saved.size, profileViews: 128, searchAppearances: 342 },
+      stats: { applied: apps.length, saved: savedIds.length, profileViews: 128, searchAppearances: 342 },
     });
   })
 );
@@ -405,12 +372,8 @@ app.put(
     for (const key of allowed) {
       if (req.body[key] !== undefined) patch[key] = req.body[key];
     }
-    if (LIVE) {
-      const updated = await fsUpdateProfile(patch);
-      return res.json(updated);
-    }
-    Object.assign(profile as unknown as Record<string, unknown>, patch);
-    res.json(profile);
+    const updated = await fsUpdateProfile(patch);
+    res.json(updated);
   })
 );
 
@@ -418,7 +381,11 @@ app.put(
 if (!process.env.VERCEL) {
   app.listen(PORT, () => {
     console.log(`🚀 Amrut Jobs backend running on http://localhost:${PORT}`);
-    console.log(`   mode: ${LIVE ? 'firestore (live amrutai data)' : 'dummy data (no Firebase credentials set)'}`);
+    console.log(
+      firestoreEnabled()
+        ? '   mode: firestore — real jobs from the amrut.ai dashboard (amrutai-2a231)'
+        : '   ⚠️  Firebase credentials missing — API will return 503'
+    );
   });
 }
 

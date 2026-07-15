@@ -143,7 +143,10 @@ function ApplicationCard({ application }: { application: Application }) {
 }
 
 export default function ApplicationsPage() {
-  const { data: applications, isLoading } = useGetApplicationsQuery();
+  // poll so company-side actions (shortlist/interview/offer) appear live
+  const { data: applications, isLoading } = useGetApplicationsQuery(undefined, {
+    pollingInterval: 30_000,
+  });
   const [filter, setFilter] = useState<ApplicationStatus | 'All'>('All');
 
   const filtered = applications?.filter((a) => filter === 'All' || a.status === filter) ?? [];

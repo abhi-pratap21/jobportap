@@ -1,11 +1,11 @@
 import type { Job } from './types';
 
-export const formatSalary = (job: Job): string => {
+export const formatSalary = (job: Pick<Job, 'salaryMin' | 'salaryMax' | 'salaryLabel'>): string => {
   if (job.salaryMin > 0) return `₹${job.salaryMin}-${job.salaryMax} LPA`;
   return job.salaryLabel || 'Not disclosed';
 };
 
-export const formatExperience = (job: Job): string => {
+export const formatExperience = (job: Pick<Job, 'experienceMin' | 'experienceMax'>): string => {
   if (job.experienceMin === 0 && job.experienceMax === 0) return 'Any experience';
   if (job.experienceMin === 0 && job.experienceMax <= 1) return 'Fresher';
   return `${job.experienceMin}-${job.experienceMax} yrs`;
