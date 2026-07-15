@@ -133,20 +133,27 @@ function mapJob(doc: FirebaseFirestore.DocumentData, id: string): Job {
 
 function mapCompany(domain: string, doc?: FirebaseFirestore.DocumentData): Company {
   const h = hash(domain);
+  // headquarters is stored as {city, country, address} on some docs, a plain string on others
+  const hq =
+    typeof doc?.headquarters === 'string'
+      ? doc.headquarters
+      : doc?.headquarters
+        ? [doc.headquarters.city, doc.headquarters.country].filter(Boolean).join(', ')
+        : '';
+  const size = doc?.employees?.range || doc?.employees?.count || '';
   return {
     id: domain,
-    name: doc?.name ?? domain,
+    name: doc?.name || domain,
     logoColor: LOGO_COLORS[h % LOGO_COLORS.length],
     industry: doc?.industryTags?.[0] ?? 'Technology',
     rating: Math.round((3.8 + (h % 9) / 10) * 10) / 10,
     reviews: 150 + (h % 4850),
-    size: doc?.employees?.range ? `${doc.employees.range} employees` : '—',
-    founded: doc?.founded ? Number(doc.founded) || 0 : 0,
-    headquarters: doc?.headquarters
-      ? [doc.headquarters.city, doc.headquarters.country].filter(Boolean).join(', ')
-      : '—',
-    website: doc?.website ?? `https://${domain}`,
-    about: doc?.description ?? doc?.tagline ?? `${doc?.name ?? domain} is hiring on Amrut Jobs.`,
+    size: size ? `${size} employees` : '',
+    founded: doc?.founded ? Number(String(doc.founded).match(/\d{4}/)?.[0] ?? 0) : 0,
+    headquarters: hq,
+    website: doc?.website || doc?.websiteUrl || `https://${domain}`,
+    about:
+      doc?.description || doc?.tagline || `${doc?.name || domain} is hiring on Amrut Jobs.`,
     tags: doc?.industryTags ?? [],
   };
 }
@@ -176,13 +183,29 @@ export async function loadCatalog(force = false): Promise<Catalog> {
   const domains = Array.from(new Set(jobs.map((j) => j.companyId)));
   const companies = new Map<string, Company>();
 
-  // Firestore "in" supports max 30 values per query — chunk to 10 to be safe
-  for (let i = 0; i < domains.length; i += 10) {
-    const chunk = domains.slice(i, i + 10);
+  // companyProfiles stores websiteUrl in varying formats — match the same
+  // variants the amrutai backend uses (bare, http(s)://, with/without www)
+  const variantsOf = (domain: string): string[] => [
+    domain,
+    `https://${domain}`,
+    `http://${domain}`,
+    `https://www.${domain}`,
+    `http://www.${domain}`,
+  ];
+  const domainOfVariant = new Map<string, string>();
+  for (const domain of domains) {
+    for (const v of variantsOf(domain)) domainOfVariant.set(v, domain);
+  }
+  const allVariants = Array.from(domainOfVariant.keys());
+
+  // Firestore "in" supports max 30 values per query
+  for (let i = 0; i < allVariants.length; i += 30) {
+    const chunk = allVariants.slice(i, i + 30);
     const profSnap = await store.collection('companyProfiles').where('websiteUrl', 'in', chunk).get();
     for (const d of profSnap.docs) {
       const data = d.data();
-      companies.set(data.websiteUrl, mapCompany(data.websiteUrl, data));
+      const domain = domainOfVariant.get(data.websiteUrl);
+      if (domain && !companies.has(domain)) companies.set(domain, mapCompany(domain, data));
     }
   }
   for (const domain of domains) {

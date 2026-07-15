@@ -60,12 +60,16 @@ export default function CompaniesPage() {
               </div>
               <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-slate-500">{c.about}</p>
               <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-100 pt-3 text-xs text-slate-500">
-                <span className="inline-flex items-center gap-1">
-                  <MapPin size={12} /> {c.headquarters.split(',')[0]}
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <Users size={12} /> {c.size}
-                </span>
+                {c.headquarters && (
+                  <span className="inline-flex items-center gap-1">
+                    <MapPin size={12} /> {c.headquarters.split(',')[0]}
+                  </span>
+                )}
+                {c.size && (
+                  <span className="inline-flex items-center gap-1">
+                    <Users size={12} /> {c.size}
+                  </span>
+                )}
                 <span className="ml-auto rounded-full bg-brand-50 px-2.5 py-1 font-bold text-brand-700">
                   {c.openJobs} jobs
                 </span>

@@ -56,15 +56,21 @@ export default function CompanyDetailPage() {
           </div>
 
           <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-600">
-            <span className="inline-flex items-center gap-1.5">
-              <MapPin size={15} className="text-slate-400" /> {company.headquarters}
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <Users size={15} className="text-slate-400" /> {company.size}
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <Calendar size={15} className="text-slate-400" /> Founded {company.founded}
-            </span>
+            {company.headquarters && (
+              <span className="inline-flex items-center gap-1.5">
+                <MapPin size={15} className="text-slate-400" /> {company.headquarters}
+              </span>
+            )}
+            {company.size && (
+              <span className="inline-flex items-center gap-1.5">
+                <Users size={15} className="text-slate-400" /> {company.size}
+              </span>
+            )}
+            {company.founded > 0 && (
+              <span className="inline-flex items-center gap-1.5">
+                <Calendar size={15} className="text-slate-400" /> Founded {company.founded}
+              </span>
+            )}
             <span className="inline-flex items-center gap-1.5">
               <Globe size={15} className="text-slate-400" />
               <a href={company.website} target="_blank" rel="noreferrer" className="text-brand-600 hover:underline">

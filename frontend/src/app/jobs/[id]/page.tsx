@@ -217,18 +217,24 @@ export default function JobDetailPage() {
             </div>
             <p className="mt-3 line-clamp-4 text-sm leading-relaxed text-slate-600">{job.company.about}</p>
             <dl className="mt-4 space-y-2 text-sm">
-              <div className="flex justify-between">
-                <dt className="text-slate-400">Company size</dt>
-                <dd className="font-medium text-slate-700">{job.company.size}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-slate-400">Founded</dt>
-                <dd className="font-medium text-slate-700">{job.company.founded}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-slate-400">Headquarters</dt>
-                <dd className="font-medium text-slate-700">{job.company.headquarters.split(',')[0]}</dd>
-              </div>
+              {job.company.size && (
+                <div className="flex justify-between">
+                  <dt className="text-slate-400">Company size</dt>
+                  <dd className="font-medium text-slate-700">{job.company.size}</dd>
+                </div>
+              )}
+              {job.company.founded > 0 && (
+                <div className="flex justify-between">
+                  <dt className="text-slate-400">Founded</dt>
+                  <dd className="font-medium text-slate-700">{job.company.founded}</dd>
+                </div>
+              )}
+              {job.company.headquarters && (
+                <div className="flex justify-between">
+                  <dt className="text-slate-400">Headquarters</dt>
+                  <dd className="font-medium text-slate-700">{job.company.headquarters.split(',')[0]}</dd>
+                </div>
+              )}
             </dl>
             <Link href={`/companies/${job.companyId}`} className="btn-secondary mt-4 w-full">
               View company page
