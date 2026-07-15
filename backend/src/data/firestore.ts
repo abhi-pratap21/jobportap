@@ -202,13 +202,16 @@ export function withCompanyFS(job: Job, companies: Map<string, Company>): JobWit
 }
 
 // ---------------------------------------------------------------------------
-// Applications → jobApplications collection (company owners read these later)
+// Applications — jobApplications collection, ONE doc per application.
+// Single source of truth, no duplication:
+//   seeker view  → where("userEmail", "==", …)
+//   company view → where("domain", "==", …)   (all applicants across its jobs)
 // ---------------------------------------------------------------------------
 function mapApplication(doc: FirebaseFirestore.DocumentData, id: string): Application {
   return {
     id,
     jobId: doc.jobId,
-    appliedOn: doc.createdAt?.toDate?.()?.toISOString?.() ?? doc.appliedOn ?? new Date().toISOString(),
+    appliedOn: doc.appliedOn ?? new Date().toISOString(),
     status: (doc.status ?? 'Applied') as ApplicationStatus,
     coverNote: doc.coverNote ?? undefined,
     timeline: doc.timeline ?? [],
@@ -217,11 +220,7 @@ function mapApplication(doc: FirebaseFirestore.DocumentData, id: string): Applic
 
 export async function fsGetApplications(): Promise<Application[]> {
   const store = getDb();
-  const snap = await store
-    .collection('jobApplications')
-    .where('source', '==', APP_SOURCE)
-    .where('applicant.email', '==', PROFILE_EMAIL)
-    .get();
+  const snap = await store.collection('jobApplications').where('userEmail', '==', PROFILE_EMAIL).get();
   return snap.docs
     .map((d) => mapApplication(d.data(), d.id))
     .sort((a, b) => new Date(b.appliedOn).getTime() - new Date(a.appliedOn).getTime());
@@ -235,8 +234,7 @@ export async function fsCreateApplication(
   const store = getDb();
   const dup = await store
     .collection('jobApplications')
-    .where('source', '==', APP_SOURCE)
-    .where('applicant.email', '==', PROFILE_EMAIL)
+    .where('userEmail', '==', PROFILE_EMAIL)
     .where('jobId', '==', job.id)
     .limit(1)
     .get();
@@ -246,11 +244,8 @@ export async function fsCreateApplication(
   const ref = store.collection('jobApplications').doc();
   const data = {
     id: ref.id,
-    jobId: job.id,
-    jobTitle: job.title,
-    domain: job.companyId,
-    companyName: job.company.name,
-    applyEmail: job.applyEmail ?? null,
+    // seeker side (query: userEmail ==)
+    userEmail: PROFILE_EMAIL,
     applicant: {
       name: applicant.name,
       email: applicant.email,
@@ -261,30 +256,39 @@ export async function fsCreateApplication(
       skills: applicant.skills,
       resumeFileName: applicant.resume.fileName,
     },
+    // company side (query: domain ==)
+    jobId: job.id,
+    jobTitle: job.title,
+    domain: job.companyId,
+    companyName: job.company.name,
+    applyEmail: job.applyEmail ?? null,
+    // application state
     coverNote: coverNote ?? null,
     status: 'Applied' as ApplicationStatus,
-    timeline: [{ status: 'Applied' as ApplicationStatus, date: now, note: 'Your application was submitted successfully.' }],
+    timeline: [
+      { status: 'Applied' as ApplicationStatus, date: now, note: 'Your application was submitted successfully.' },
+    ],
     source: APP_SOURCE,
     appliedOn: now,
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
   };
   await ref.set(data);
-  // bump the applicant counter on the job post (company owner sees activity)
+  // derived counter on the job post — powers the "applicants" count on job cards
   await store
     .collection('jobPostings')
     .doc(job.id)
     .set({ applicantsCount: FieldValue.increment(1) }, { merge: true })
     .catch(() => undefined);
   invalidateCatalog();
-  return mapApplication({ ...data, createdAt: null }, ref.id);
+  return mapApplication(data, ref.id);
 }
 
 export async function fsWithdrawApplication(id: string): Promise<boolean> {
   const store = getDb();
   const ref = store.collection('jobApplications').doc(id);
   const doc = await ref.get();
-  if (!doc.exists || doc.data()?.source !== APP_SOURCE) return false;
+  if (!doc.exists || doc.data()?.userEmail !== PROFILE_EMAIL) return false;
   const jobId = doc.data()?.jobId;
   await ref.delete();
   if (jobId) {
