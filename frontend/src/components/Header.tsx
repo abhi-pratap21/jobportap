@@ -27,7 +27,7 @@ export default function Header() {
             <BriefcaseBusiness size={18} />
           </span>
           <span className="text-xl font-extrabold tracking-tight text-slate-900">
-            Job<span className="text-brand-600">Nest</span>
+            Amrut<span className="text-brand-600">Jobs</span>
           </span>
         </Link>
 

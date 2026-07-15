@@ -23,12 +23,14 @@ export interface Job {
   companyId: string;
   category: string;
   location: string;
-  workMode: WorkMode;
-  jobType: JobType;
+  workMode: WorkMode | string;
+  jobType: JobType | string;
   experienceMin: number;
   experienceMax: number;
   salaryMin: number;
   salaryMax: number;
+  salaryLabel?: string;
+  applyEmail?: string | null;
   skills: string[];
   description: string;
   responsibilities: string[];

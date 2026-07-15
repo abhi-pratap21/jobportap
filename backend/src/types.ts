@@ -22,12 +22,14 @@ export interface Job {
   companyId: string;
   category: string;
   location: string;
-  workMode: WorkMode;
-  jobType: JobType;
-  experienceMin: number; // years
+  workMode: WorkMode | string;
+  jobType: JobType | string;
+  experienceMin: number; // years (0/0 = not specified)
   experienceMax: number;
-  salaryMin: number; // LPA
+  salaryMin: number; // LPA (0 = not parsed, see salaryLabel)
   salaryMax: number;
+  salaryLabel?: string; // raw salary text from the job post, e.g. "₹18–28 LPA"
+  applyEmail?: string | null;
   skills: string[];
   description: string;
   responsibilities: string[];

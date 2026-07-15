@@ -1,12 +1,15 @@
 import type { Job } from './types';
 
-export const formatSalary = (job: Job): string =>
-  `₹${job.salaryMin}-${job.salaryMax} LPA`;
+export const formatSalary = (job: Job): string => {
+  if (job.salaryMin > 0) return `₹${job.salaryMin}-${job.salaryMax} LPA`;
+  return job.salaryLabel || 'Not disclosed';
+};
 
-export const formatExperience = (job: Job): string =>
-  job.experienceMin === 0 && job.experienceMax <= 1
-    ? 'Fresher'
-    : `${job.experienceMin}-${job.experienceMax} yrs`;
+export const formatExperience = (job: Job): string => {
+  if (job.experienceMin === 0 && job.experienceMax === 0) return 'Any experience';
+  if (job.experienceMin === 0 && job.experienceMax <= 1) return 'Fresher';
+  return `${job.experienceMin}-${job.experienceMax} yrs`;
+};
 
 export const formatPosted = (days: number): string => {
   if (days === 0) return 'Today';

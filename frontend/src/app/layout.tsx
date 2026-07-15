@@ -7,11 +7,11 @@ import MobileNav from '@/components/MobileNav';
 
 export const metadata: Metadata = {
   title: {
-    default: 'JobNest — Find Your Dream Job',
-    template: '%s | JobNest',
+    default: 'Amrut Jobs — Find Your Dream Job',
+    template: '%s | Amrut Jobs',
   },
   description:
-    'JobNest is India’s smartest job platform. Search thousands of jobs, apply in one click and track every application in one place.',
+    'Amrut Jobs is India’s smartest job platform, by the team behind amrut.ai. Search live openings from real companies, apply in one click and track every application in one place.',
 };
 
 export const viewport: Viewport = {

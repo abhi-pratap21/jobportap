@@ -53,7 +53,7 @@ const steps = [
   {
     icon: MousePointerClick,
     title: 'Apply in one click',
-    text: 'Your JobNest profile is your resume. Apply to any job instantly — no forms, no friction.',
+    text: 'Your Amrut Jobs profile is your resume. Apply to any job instantly — no forms, no friction.',
   },
   {
     icon: BadgeCheck,
@@ -216,7 +216,7 @@ export default function HomePage() {
       <section className="bg-gradient-to-b from-white to-brand-50/60 py-12 sm:py-16">
         <div className="container-page">
           <div className="text-center">
-            <h2 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">How JobNest works</h2>
+            <h2 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">How Amrut Jobs works</h2>
             <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
               Three simple steps between you and your next role
             </p>

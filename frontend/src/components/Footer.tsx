@@ -11,12 +11,15 @@ export default function Footer() {
               <BriefcaseBusiness size={16} />
             </span>
             <span className="text-lg font-extrabold text-slate-900">
-              Job<span className="text-brand-600">Nest</span>
+              Amrut<span className="text-brand-600">Jobs</span>
             </span>
           </div>
           <p className="mt-3 max-w-xs text-sm leading-relaxed text-slate-500">
-            India&apos;s smartest job platform. Discover opportunities, apply in one click and track
-            every application in one place.
+            India&apos;s smartest job platform, by the team behind{' '}
+            <a href="https://amrut.ai" target="_blank" rel="noreferrer" className="font-medium text-brand-600 hover:underline">
+              amrut.ai
+            </a>
+            . Discover opportunities, apply in one click and track every application in one place.
           </p>
         </div>
         {[
@@ -63,7 +66,7 @@ export default function Footer() {
       </div>
       <div className="border-t border-slate-100">
         <div className="container-page py-4 text-center text-xs text-slate-400">
-          © 2026 JobNest. All rights reserved. Made with ❤️ in India.
+          © 2026 Amrut Jobs · An amrut.ai product. Made with ❤️ in India.
         </div>
       </div>
     </footer>

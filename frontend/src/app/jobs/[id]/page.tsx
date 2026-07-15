@@ -266,7 +266,7 @@ export default function JobDetailPage() {
             <p className="mt-1 text-sm text-slate-500">{job.title} · {job.location.split(',')[0]}</p>
 
             <div className="mt-4 rounded-2xl bg-brand-50/70 p-4 text-sm text-slate-600">
-              Your JobNest profile and resume will be shared with the recruiter. Make sure your
+              Your Amrut Jobs profile and resume will be shared with the recruiter. Make sure your
               profile is up to date before applying.
             </div>
 
